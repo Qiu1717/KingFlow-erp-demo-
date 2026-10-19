@@ -1100,7 +1100,7 @@ describe.sequential('六角色写权限矩阵与越权零副作用', { timeout: 
         const created = await expectAllowedWrite(clients[role], 'post', '/system/users', {
           username: `sec_created_${Date.now()}`,
           displayName: '管理员创建账号',
-          password: 'Created@123',
+          password: 'Created@12345',
           roleId: roleIds.GUEST,
         });
         expect(created.status).toBe(201);
@@ -1109,7 +1109,7 @@ describe.sequential('六角色写权限矩阵与越权零副作用', { timeout: 
           displayName: '管理员改名',
         });
         await expectAllowedWrite(clients[role], 'post', `/system/users/${target.id}/reset-password`, {
-          password: 'Reset@12345',
+          password: 'Reset@123456',
         });
         await expectAllowedWrite(clients[role], 'patch', `/system/roles/${tempRole.id}`, {
           permissions: ['master:read'],
@@ -1118,7 +1118,7 @@ describe.sequential('六角色写权限矩阵与越权零副作用', { timeout: 
         await expectForbiddenWrite(clients[role], 'post', '/system/users', {
           username: `sec_denied_${role}`,
           displayName: '越权创建',
-          password: 'Created@123',
+          password: 'Created@12345',
           roleId: roleIds.GUEST,
         }, userCount);
         await expectForbiddenWrite(clients[role], 'patch', `/system/users/${target.id}`, {
@@ -1130,7 +1130,7 @@ describe.sequential('六角色写权限矩阵与越权零副作用', { timeout: 
             : 1,
         );
         await expectForbiddenWrite(clients[role], 'post', `/system/users/${target.id}/reset-password`, {
-          password: 'Reset@12345',
+          password: 'Reset@123456',
         }, async () =>
           (await prisma.session.count({ where: { userId: target.id } })) +
           (await prisma.auditLog.count({
@@ -1179,7 +1179,7 @@ describe.sequential('六角色写权限矩阵与越权零副作用', { timeout: 
         await api(client).post('/system/users', {
           username: 'sec_auditor_created',
           displayName: '越权',
-          password: 'Created@123',
+          password: 'Created@12345',
           roleId: role.id,
         })
       ).status,

@@ -204,7 +204,7 @@ describe.sequential('用户管理：校验、持久化与不可越权字段', { 
       prisma.user.findUniqueOrThrow({ where: { id: user.id } });
     for (const [label, body] of [
       ['改用户名', { username: 'sys_edit2' }],
-      ['改密码', { password: 'Another@123' }],
+      ['改密码', { password: 'Another@12345' }],
       ['写哈希', { passwordHash: 'x' }],
       ['空变更', {}],
     ] as [string, object][]) {
@@ -342,7 +342,7 @@ describe.sequential('用户管理：校验、持久化与不可越权字段', { 
     ).toBe(before.passwordHash);
 
     const reset = await api(admin).post(`/system/users/${user.id}/reset-password`, {
-      password: 'Reset@12345',
+      password: 'Reset@123456',
     });
     expect(reset.status).toBe(200);
     expect(await prisma.session.count({ where: { userId: user.id } })).toBe(0);
@@ -351,10 +351,10 @@ describe.sequential('用户管理：校验、持久化与不可越权字段', { 
     ).toBe(401);
     const after = await prisma.user.findUniqueOrThrow({ where: { id: user.id } });
     expect(after.passwordHash).not.toBe(before.passwordHash);
-    expect(await compare('Reset@12345', after.passwordHash)).toBe(true);
+    expect(await compare('Reset@123456', after.passwordHash)).toBe(true);
     expect(await compare(PASSWORD, after.passwordHash)).toBe(false);
     expect((await signIn('sys_reset', PASSWORD)).response.status).toBe(401);
-    expect((await signIn('sys_reset', 'Reset@12345')).response.status).toBe(200);
+    expect((await signIn('sys_reset', 'Reset@123456')).response.status).toBe(200);
     const audit = await prisma.auditLog.findFirst({
       where: { action: 'RESET_PASSWORD', resource: 'users', resourceId: user.id },
       orderBy: { createdAt: 'desc' },
@@ -711,13 +711,13 @@ describe.sequential('审计日志：过滤、分页、日期与脱敏', { timeou
     expect(rows.length).toBeGreaterThan(0);
     const text = JSON.stringify(rows);
     expect(text).not.toMatch(SECRET_PATTERN);
-    expect(text).not.toContain('Reset@12345');
+    expect(text).not.toContain('Reset@123456');
     expect(text).not.toContain('Another@12345');
     // 审计接口同样不得回传上述内容。
     const response = await api(admin).get('/system/audit-logs', { pageSize: 100 });
     expect(response.status).toBe(200);
     expectNoSecret(response.body);
-    expect(JSON.stringify(response.body)).not.toContain('Reset@12345');
+    expect(JSON.stringify(response.body)).not.toContain('Reset@123456');
     // 会话表只保存令牌摘要（64位十六进制），绝不保存明文令牌。
     const sessions = await prisma.session.findMany();
     for (const session of sessions) {
@@ -781,11 +781,11 @@ describe.sequential('个人设置：显示名称与改密', { timeout: 120000 },
     expect(await prisma.session.count({ where: { userId: user.id } })).toBe(2);
 
     for (const body of [
-      { currentPassword: 'Wrong-Old@1', newPassword: 'Changed@123' },
+      { currentPassword: 'Wrong-Old@1', newPassword: 'Changed@12345' },
       { currentPassword: PASSWORD, newPassword: '123' },
       { currentPassword: PASSWORD, newPassword: '密'.repeat(25) },
       { currentPassword: PASSWORD },
-      { currentPassword: PASSWORD, newPassword: 'Changed@123', extra: 1 },
+      { currentPassword: PASSWORD, newPassword: 'Changed@12345', extra: 1 },
     ]) {
       const response = await api(client).post('/auth/password', body);
       expect(response.status, JSON.stringify(body)).toBe(422);
@@ -798,14 +798,14 @@ describe.sequential('个人设置：显示名称与改密', { timeout: 120000 },
 
     const changed = await api(client).post('/auth/password', {
       currentPassword: PASSWORD,
-      newPassword: 'Changed@123',
+      newPassword: 'Changed@12345',
     });
     expect(changed.status).toBe(200);
     const cleared = changed.headers['set-cookie'] as unknown as string[];
     expect(cleared.join(';')).toMatch(/kf_session=;/);
     const updated = await prisma.user.findUniqueOrThrow({ where: { id: user.id } });
     expect(updated.passwordHash).not.toBe(original.passwordHash);
-    expect(await compare('Changed@123', updated.passwordHash)).toBe(true);
+    expect(await compare('Changed@12345', updated.passwordHash)).toBe(true);
     expect(await prisma.session.count({ where: { userId: user.id } })).toBe(0);
     for (const session of [first, second]) {
       expect(
@@ -813,7 +813,7 @@ describe.sequential('个人设置：显示名称与改密', { timeout: 120000 },
       ).toBe(401);
     }
     expect((await signIn('sys_password', PASSWORD)).response.status).toBe(401);
-    expect((await signIn('sys_password', 'Changed@123')).response.status).toBe(200);
+    expect((await signIn('sys_password', 'Changed@12345')).response.status).toBe(200);
     expect(
       await prisma.auditLog.count({
         where: { action: 'CHANGE_PASSWORD', resource: 'users', resourceId: user.id },

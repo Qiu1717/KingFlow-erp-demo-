@@ -218,14 +218,14 @@ describe.sequential('系统管理真实API安全闭环', () => {
     expect(
       (
         await write('post', `/system/users/${userId}/reset-password`, {
-          password: 'Changed@123',
+          password: 'Changed@12345',
         })
       ).status,
     ).toBe(200);
     expect(await prisma.session.count({ where: { userId } })).toBe(0);
     expect(
       await compare(
-        'Changed@123',
+        'Changed@12345',
         (await prisma.user.findUniqueOrThrow({ where: { id: userId } }))
           .passwordHash,
       ),

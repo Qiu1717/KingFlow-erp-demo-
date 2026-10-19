@@ -18,6 +18,15 @@ RELEASE="$APP_ROOT/releases/$STAMP"
 log() { printf '\n\033[1;36m=== %s ===\033[0m\n' "$*"; }
 die() { printf '\033[1;31m失败：%s\033[0m\n' "$*" >&2; exit 1; }
 
+# 生成满足统一口令策略的随机密码：≥12位、≤72字节、含大小写字母/数字/符号。
+# 12 位随机字母数字提供熵，"#Aa9" 后缀保证四类字符齐全，避免生成的密码
+# 被共享包的 accountPasswordSchema 拒绝。
+gen_pwd() {
+  local base
+  base="$(openssl rand -base64 48 | tr -dc 'A-Za-z0-9' | head -c 12)"
+  printf '%s' "${base}#Aa9"
+}
+
 [ "$(id -u)" -eq 0 ] || die "请用 root 执行"
 [ -f "$TARBALL" ] || die "找不到源码包 $TARBALL"
 
@@ -90,26 +99,28 @@ cat > "$APP_ROOT/.npmrc" <<'EOF'
 registry=https://registry.npmmirror.com
 EOF
 chown -R "$APP_USER:$APP_USER" "$RELEASE" "$APP_ROOT/.npmrc"
-ln -sfn "$RELEASE" "$APP_ROOT/current"
-echo "已切换 current -> $RELEASE"
+# 注意：**不在这里切 current 软链**。软链一旦提前指向尚未构建成功的目录，
+# 构建一旦失败，Nginx 的 root 立刻变成半成品，线上直接白屏。
+# 只有构建、迁移、初始化全部成功后才切换（见第 8 步），失败时保持旧版本继续服务。
+echo "解包完成：$RELEASE（current 暂未切换）"
 
 log "6/9 安装依赖并构建（2G 机器约 5–10 分钟）"
 sudo -u "$APP_USER" -H env HOME="$APP_ROOT" PATH="$NODE_HOME/bin:$PATH" bash -c "
   set -e
-  cd '$APP_ROOT/current'
+  cd '$RELEASE'
   pnpm install --frozen-lockfile
   pnpm build
 "
-[ -f "$APP_ROOT/current/apps/web/dist/index.html" ] || die "前端构建产物缺失"
-[ -f "$APP_ROOT/current/apps/api/dist/apps/api/src/server.js" ] || die "后端构建产物缺失"
+[ -f "$RELEASE/apps/web/dist/index.html" ] || die "前端构建产物缺失（current 仍指向旧版本，线上未受影响）"
+[ -f "$RELEASE/apps/api/dist/apps/api/src/server.js" ] || die "后端构建产物缺失（current 仍指向旧版本，线上未受影响）"
 echo "构建产物完整"
 
 log "7/9 生成环境变量与演示账号"
 if [ -f "$ENV_FILE" ]; then
   echo "复用已有 $ENV_FILE"
 else
-  ADMIN_PWD="$(openssl rand -base64 24 | tr -dc 'A-Za-z0-9' | head -c 16)"
-  DEMO_PWD="$(openssl rand -base64 24 | tr -dc 'A-Za-z0-9' | head -c 16)"
+  ADMIN_PWD="$(gen_pwd)"
+  DEMO_PWD="$(gen_pwd)"
   cat > "$ENV_FILE" <<EOF
 NODE_ENV=development
 APP_ORIGIN=http://$PUBLIC_IP
@@ -133,18 +144,26 @@ fi
 set -a; . "$ENV_FILE"; set +a
 sudo -u "$APP_USER" -H env HOME="$APP_ROOT" PATH="$NODE_HOME/bin:$PATH" \
   NODE_ENV="$NODE_ENV" APP_ORIGIN="$APP_ORIGIN" DATABASE_URL="$DATABASE_URL" \
-  bash -c "cd '$APP_ROOT/current' && pnpm --filter @kingflow/api db:migrate"
+  bash -c "cd '$RELEASE' && pnpm --filter @kingflow/api db:migrate"
 
+# 幂等初始化：只补缺失的角色与账号。
+# 已有账号一律跳过 —— 不重置密码、不改角色、不改启停状态，也不撤销会话；
+# 这是重复部署（升级）时必须保持的语义，否则一次重新部署就会把线上密码打回随机值。
+ADMIN_PWD=""
+DEMO_PWD=""
 if [ -f /root/kingflow-credentials.txt ]; then
   ADMIN_PWD="$(awk '/^admin/{print $3}' /root/kingflow-credentials.txt)"
   DEMO_PWD="$(awk '/^demo/{print $3}' /root/kingflow-credentials.txt)"
-  sudo -u "$APP_USER" -H env HOME="$APP_ROOT" PATH="$NODE_HOME/bin:$PATH" \
-    NODE_ENV=development DATABASE_URL="$DATABASE_URL" \
-    ADMIN_PASSWORD="$ADMIN_PWD" DEMO_PASSWORD="$DEMO_PWD" \
-    bash -c "cd '$APP_ROOT/current' && pnpm --filter @kingflow/api exec tsx scripts/provision-demo.ts"
 fi
+sudo -u "$APP_USER" -H env HOME="$APP_ROOT" PATH="$NODE_HOME/bin:$PATH" \
+  NODE_ENV=development DATABASE_URL="$DATABASE_URL" \
+  ADMIN_PASSWORD="$ADMIN_PWD" DEMO_PASSWORD="$DEMO_PWD" \
+  bash -c "cd '$RELEASE' && pnpm --filter @kingflow/api exec tsx scripts/provision-demo.ts"
 
-log "8/9 安装 systemd 服务与 Nginx 站点"
+log "8/9 切换版本、安装 systemd 服务与 Nginx 站点"
+# 到这里构建、迁移、初始化都已成功，才把 current 指向新版本并重启。
+ln -sfn "$RELEASE" "$APP_ROOT/current"
+echo "已切换 current -> $RELEASE"
 cat > /etc/systemd/system/kingflow-erp.service <<EOF
 [Unit]
 Description=KingFlow ERP (API + Web)
@@ -235,20 +254,9 @@ for i in $(seq 1 20); do sleep 1; systemctl is-active --quiet kingflow-erp && br
 systemctl is-active --quiet kingflow-erp || { journalctl -u kingflow-erp -n 40 --no-pager; die "服务未启动"; }
 
 log "9/9 每日备份定时器与自检"
-cat > /usr/local/bin/kingflow-backup <<'EOF'
-#!/bin/sh
-set -eu
-DEST=/var/backups/kingflow
-mkdir -p "$DEST"
-cd /opt/kingflow/current
-export PATH=/opt/nodejs/bin:$PATH HOME=/opt/kingflow
-# db:backup 拒绝覆盖已存在文件；同一天重跑（失败重试/手工补跑）时退回带时分的目标名。
-TARGET="$DEST/erp-$(date +%Y%m%d).db"
-if [ -e "$TARGET" ]; then TARGET="$DEST/erp-$(date +%Y%m%d-%H%M).db"; fi
-pnpm db:backup "$TARGET"
-find "$DEST" -name 'erp-*.db' -mtime +14 -delete
-EOF
-chmod 750 /usr/local/bin/kingflow-backup
+# 直接复用仓库里的 deploy/kingflow-backup.sh，避免与这里的内联副本各写一份而漂移。
+install -m 0750 -o "$APP_USER" -g "$APP_USER" "$RELEASE/deploy/kingflow-backup.sh" /usr/local/bin/kingflow-backup
+grep -q 'DATABASE_URL' /usr/local/bin/kingflow-backup || die "备份脚本缺少 DATABASE_URL 环境校验"
 chown kingflow:kingflow /usr/local/bin/kingflow-backup
 
 cat > /etc/systemd/system/kingflow-backup.service <<'EOF'

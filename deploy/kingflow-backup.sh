@@ -2,6 +2,12 @@
 # 每日备份：由 kingflow-backup.timer 触发（04:10，随机延迟 5 分钟）。
 # 保留 14 天，超期自动清理。db:backup 内部会先做账实核对，核对不通过则拒绝备份。
 set -eu
+# 环境校验：缺少 DATABASE_URL 直接失败，绝不允许回退到 dev.db 后"成功地"备份一个空库。
+if [ -z "${DATABASE_URL:-}" ]; then
+  echo "缺少 DATABASE_URL，拒绝执行备份（不会回退到 dev.db）。请通过 EnvironmentFile 注入。" >&2
+  exit 1
+fi
+echo "源库配置：$DATABASE_URL"
 DEST=/var/backups/kingflow
 mkdir -p "$DEST"
 cd /opt/kingflow/current

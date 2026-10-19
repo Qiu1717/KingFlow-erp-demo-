@@ -17,6 +17,7 @@ import { useAuth } from '../../stores/auth';
 import { PageHeader } from '../../components/common';
 import { errorMessage, get, http } from '../../services/client';
 import { permissionLabels } from './api';
+import { accountPasswordRules } from './passwordRules';
 export function Profile() {
   const auth = useAuth((state) => state.auth);
   const { message, modal } = App.useApp();
@@ -150,10 +151,7 @@ export function Profile() {
             <Form.Item
               name="newPassword"
               label="新密码"
-              rules={[
-                { required: true, message: '请输入新密码' },
-                { min: 8, max: 72, message: '密码为8至72位' },
-              ]}
+              rules={accountPasswordRules}
             >
               <Input.Password autoComplete="new-password" />
             </Form.Item>

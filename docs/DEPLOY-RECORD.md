@@ -14,6 +14,7 @@ codex 编写的生产版手册见 `DEPLOYMENT.md`（其 HTTPS / production 前�
 | 运行时 | Node v24.22.0（`/opt/nodejs`）+ pnpm 11.25.0 |
 | 数据库 | SQLite，`/var/lib/kingflow/erp.db` |
 | 公开注册 | **已开启**（`REGISTRATION_ENABLED=true`），审核制：新注册账号为 GUEST + `PENDING`，须管理员审核并分配业务角色后才能登录 |
+| 可用角色 | `ADMIN`、`PURCHASE`、`SALES`、`WAREHOUSE`、`FINANCE`、`GUEST`（共 6 个，与共享包 `roleDefinitions` 一致） |
 
 ## 2. 采用的方案
 
@@ -177,6 +178,67 @@ systemctl restart kingflow-erp
 **遗留**：库里只有 `ADMIN` 与 `GUEST` 两个角色（`provision-demo.ts` 只建了这两个），
 缺少采购 / 销售 / 仓库 / 财务角色，管理员审核时除 GUEST 外无业务角色可选。
 需要时按 `packages/shared` 的 `roleDefinitions` 补齐。
+**（已于同日 20:44 解决，见下一节）**
+
+### 2026-10-19 20:44 角色补齐、密码策略统一与运维加固
+
+**1. 数据库备份与核验**
+- 加载 `/etc/kingflow/erp.env` 后 `DATABASE_URL=file:/var/lib/kingflow/erp.db`，
+  并用 `PRAGMA database_list` 证实实际连接的就是 `main → /var/lib/kingflow/erp.db`（绝对路径）。
+- 备份：`pre-rolesync-20261019-2031.db`（454,656 字节，SHA256 `8a1c7660…49e92`）、
+  定时任务实跑产出 `erp-20261019-2043.db`（462,848 字节，SHA256 `cfbb5954…fb3cf2c`）。
+
+**2. 角色补齐（幂等）**
+- 按 `roleDefinitions` 只创建缺失项：新增 `PURCHASE`/`SALES`/`WAREHOUSE`/`FINANCE`；
+  已存在的 `ADMIN`/`GUEST` **未做任何修改**（含权限 JSON）。
+- 库中角色 2 → 6；账号、密码指纹、会话数、审计数与基线**完全一致**。
+- 验证：`GET /api/v1/roles` 返回 6 个角色；审核弹窗的下拉会自动排除 ADMIN 与含
+  `system:manage` 的角色，因此可选 5 个业务角色。
+- 权限逐项生效：四个角色读主数据均 200；`PATCH /products/:id` 仅 PURCHASE 返回 404
+  （权限放行、记录不存在），其余三角色 403；四角色访问角色管理均 403；
+  登录返回的 `permissions` 数组与 `roleDefinitions` 逐字一致。
+
+**3. 初始化与部署的非破坏性**
+- `provision-demo.ts` 重写为「只补缺失」：角色缺失才创建，已存在的不覆盖权限
+  （与共享包不一致时仅告警、交人工决策）；账号存在即整体跳过——不改密码、
+  不改角色、不改启停、不撤销会话；密码仅在**真正需要建号**时才必填。
+- `bootstrap.sh`：初始化改为总是执行（顺带完成角色同步）；密码生成改为 `gen_pwd()`
+  保证 12 位且四类字符齐全（否则会被新口令策略拒绝）；
+  **`current` 软链延后到构建 / 迁移 / 初始化全部成功后才切换**——此前是解包后立即切换，
+  构建一旦失败线上立刻变成半成品白屏。
+- 实测：真实重部署一次，`admin`/`demo` 的密码指纹、状态、角色、`updatedAt`、
+  Session 与 AuditLog 计数与基线一致；再次单独执行初始化输出「创建 0 项、跳过 8 项」，
+  且无需提供密码。
+
+**4. 口令策略统一（四处入口一份规则）**
+- 后端 `system-service` 的 `password` 从「≥8 位」改为共享包 `accountPasswordSchema`
+  （≥12 位、≤72 字节、需含大小写字母/数字/符号、禁含系统名称），
+  注册、管理员建号、管理员重置、个人改密四处共用。
+- 前端新增 `passwordRules.ts`，直接 `safeParse` 同一个共享 schema，
+  `Management`（建号/重置）与 `Profile`（改密）不再各写一套校验。
+- 测试中的短密码字面量同步升级（`Created@123` → `Created@12345` 等）。
+- 验证：8 位、缺符号、短密码在四条路径均被 `VALIDATION_ERROR` 拒绝且错误信息一致；
+  管理员重置后旧会话立即 401、`Session` 归零；个人改密后同一会话 401、`Session` 归零；
+  `admin` 密码指纹与基线一致 —— **未改动任何已有账号的密码**。
+
+**5. 运维命令的环境守卫**
+- 新增 `apps/api/scripts/require-ops-env.ts`，`backup.ts` 在建立数据库连接**之前**引入：
+  缺少 `DATABASE_URL` 直接退出（退出码 1），杜绝回退到 `dev.db` 后对着空库产出假备份。
+- `BackupResult` 增加 `source` 字段；备份输出打印实际源库路径（由 `PRAGMA database_list`
+  解析，而非配置值），并注明备份前已通过 7 项账实不变量核对。
+- `bootstrap.sh` 不再内联备份脚本，改为直接安装仓库里的 `deploy/kingflow-backup.sh`，
+  消除两份副本漂移；该脚本同样先校验 `DATABASE_URL`。
+- 实测：不给 `DATABASE_URL` 时退出码 1、报错明确、**不产生任何备份文件**；
+  定时服务实跑输出 `源数据库：/var/lib/kingflow/erp.db`。
+
+**6. HTTPS 接入条件（本次未切换）**
+- 现状：80 明文、无证书、443 未监听也未在云防火墙放行；Nginx 自带 `http_ssl_module`。
+- 切换 `NODE_ENV=production` 需要同时具备：
+  1. 一个域名，且完成 **ICP 备案**（腾讯云备案要求服务器包年包月 ≥3 个月，当前实例仅 1 个月，需先续费）；
+  2. TLS 证书（云厂商免费证书或 acme.sh 签发）；
+  3. 云防火墙放行 443；
+  4. `APP_ORIGIN` 改为 `https://<域名>`，`TRUST_PROXY=loopback` 不变。
+- 未切换原因：缺少域名与证书，此刻切 production 会让所有请求返回 426，站点立即不可用。
 
 ## 9. 撤销
 

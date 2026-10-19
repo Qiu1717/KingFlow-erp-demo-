@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { compare, hash } from 'bcryptjs';
 import { Prisma } from '@prisma/client';
 import type { SessionUser } from '@kingflow/shared';
+import { accountPasswordSchema } from '@kingflow/shared';
 import { prisma } from '../repositories/db.js';
 import * as repository from '../repositories/system-repository.js';
 import { authorize } from './master-service.js';
@@ -30,11 +31,12 @@ export const permissionOptions = [
   'finance:read',
   'settlements:write',
 ] as const;
-const password = z
-  .string()
-  .min(8, '密码至少8位')
-  .max(72)
-  .refine((value) => Buffer.byteLength(value, 'utf8') <= 72, '密码最多72字节');
+/**
+ * 账号口令统一走共享包的策略（注册、管理员建号、管理员重置、个人改密四处共用）：
+ * ≥12 位、≤72 字节、必须同时含大小写字母/数字/符号，且不得包含系统名称。
+ * 这里不做二次放宽，避免出现「注册要求12位、重置只要求8位」的策略缺口。
+ */
+const password = accountPasswordSchema;
 const displayName = z.string().trim().min(1).max(60);
 const id = z.string().min(1).max(100);
 const pagination = {

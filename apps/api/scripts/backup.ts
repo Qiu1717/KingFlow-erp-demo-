@@ -1,4 +1,6 @@
 import 'dotenv/config';
+// 必须排在 db.ts 之前：它会在缺少 DATABASE_URL 时中止进程，避免回退到 dev.db。
+import './require-ops-env.js';
 import { resolve } from 'node:path';
 import { mkdir } from 'node:fs/promises';
 import { prisma } from '../src/repositories/db.js';
@@ -59,10 +61,12 @@ async function main() {
     const target = rest[0];
     if (!target) return usage();
     const result = await backupDatabase(resolve(target));
-    console.log(`备份完成：${result.path}`);
+    console.log(`源数据库：${result.source}`);
+    console.log(`备份文件：${result.path}`);
     console.log(`大小：${result.bytes} 字节`);
     console.log(`SHA256：${result.sha256}`);
     console.log(`时间：${result.createdAt}`);
+    console.log('完整性：备份前已通过源库账实核对（7 项不变量）');
     return;
   }
 

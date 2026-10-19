@@ -26,6 +26,7 @@ import {
 } from '../../components/common';
 import { errorMessage } from '../../services/client';
 import { useAuth } from '../../stores/auth';
+import { accountPasswordRules } from './passwordRules';
 import {
   systemApi,
   permissionLabels,
@@ -37,10 +38,7 @@ const nameRules = [
   { required: true, message: '请输入显示名称' },
   { max: 60, message: '最多60个字符' },
 ];
-const passwordRules = [
-  { required: true, message: '请输入密码' },
-  { min: 8, max: 72, message: '密码为8至72位' },
-];
+// 与后端共用同一份口令策略，见 passwordRules.ts
 export function UsersPage() {
   const { message, modal } = App.useApp();
   const client = useQueryClient();
@@ -379,7 +377,7 @@ export function UsersPage() {
               >
                 <Input autoComplete="off" />
               </Form.Item>
-              <Form.Item name="password" label="初始密码" rules={passwordRules}>
+              <Form.Item name="password" label="初始密码" rules={accountPasswordRules}>
                 <Input.Password autoComplete="new-password" />
               </Form.Item>
             </>
@@ -435,7 +433,7 @@ export function UsersPage() {
             }
           }}
         >
-          <Form.Item name="password" label="新密码" rules={passwordRules}>
+          <Form.Item name="password" label="新密码" rules={accountPasswordRules}>
             <Input.Password autoComplete="new-password" />
           </Form.Item>
         </Form>

@@ -32,6 +32,8 @@ export interface IntegrityReport {
 
 export interface BackupResult {
   path: string;
+  /** 实际被备份的源库绝对路径（由 PRAGMA database_list 解析，不是配置值）。 */
+  source: string;
   bytes: number;
   sha256: string;
   createdAt: string;
@@ -421,6 +423,7 @@ export async function backupDatabase(
     );
   return {
     path: target,
+    source: resolve(source),
     bytes: info.size,
     sha256: await sha256File(target),
     createdAt: new Date().toISOString(),
