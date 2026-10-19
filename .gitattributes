@@ -1,0 +1,11 @@
+# 统一换行：源码与部署脚本一律 LF，避免 Linux 上检出后 .sh 出现 \r 而无法执行
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.db binary

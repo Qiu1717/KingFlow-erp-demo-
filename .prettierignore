@@ -1,0 +1,7 @@
+pnpm-lock.yaml
+**/dist/
+**/node_modules/
+**/prisma/migrations/
+test-results/
+playwright-report/
+.tmp-build/

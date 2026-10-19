@@ -1,0 +1,37 @@
+{
+  "name": "kingflow-erp",
+  "private": true,
+  "version": "0.2.0",
+  "packageManager": "pnpm@11.25.0",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "dev": "concurrently -n api,web \"pnpm --filter @kingflow/api dev\" \"pnpm --filter @kingflow/web dev\"",
+    "db:migrate": "pnpm --filter @kingflow/api db:migrate",
+    "db:bootstrap": "pnpm --filter @kingflow/api db:bootstrap",
+    "db:seed": "pnpm --filter @kingflow/api db:seed",
+    "db:reset": "pnpm --filter @kingflow/api db:reset",
+    "db:backup": "pnpm --filter @kingflow/api db:backup",
+    "db:verify": "pnpm --filter @kingflow/api db:verify",
+    "db:restore": "pnpm --filter @kingflow/api db:restore",
+    "db:drill": "pnpm --filter @kingflow/api db:drill",
+    "smoke:prod": "pnpm --filter @kingflow/api smoke:prod",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "typecheck": "tsc --noEmit && pnpm -r typecheck",
+    "test": "pnpm --filter @kingflow/api test",
+    "test:e2e": "playwright test",
+    "build": "pnpm -r build"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.56.0",
+    "@types/node": "24.19.2",
+    "concurrently": "^9.2.1",
+    "eslint": "^10.12.0",
+    "prettier": "^3.6.2",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.46.0"
+  }
+}

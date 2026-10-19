@@ -1,0 +1,63 @@
+{
+  "date": "2026-10-17",
+  "dataSource": "独立干净Seed演示库，不含本地dev.db数据",
+  "viewport": {
+    "width": 1440,
+    "height": 1080,
+    "dashboardHeight": 1240
+  },
+  "products": 30,
+  "customers": 10,
+  "screenshots": [
+    {
+      "file": "01-dashboard.png",
+      "title": "经营概览"
+    },
+    {
+      "file": "02-sales-orders.png",
+      "title": "销售订单"
+    },
+    {
+      "file": "03-purchase-detail.png",
+      "title": "采购订单详情"
+    },
+    {
+      "file": "04-inventory.png",
+      "title": "实时库存"
+    },
+    {
+      "file": "05-receivable.png",
+      "title": "收款单据详情"
+    },
+    {
+      "file": "06-sales-report.png",
+      "title": "销售报表"
+    },
+    {
+      "file": "07-visualizations-sales.png",
+      "title": "销售趋势与排行",
+      "date": "2026-10-19"
+    },
+    {
+      "file": "08-visualizations-inventory.png",
+      "title": "库存对比与占比",
+      "date": "2026-10-19"
+    },
+    {
+      "file": "09-visualizations-finance.png",
+      "title": "应收应付结算结构",
+      "date": "2026-10-19"
+    }
+  ],
+  "visualizationUpdate": {
+    "date": "2026-10-19",
+    "dataSource": "独立干净Seed演示库，30商品10客户，生产构建预览",
+    "viewport": {
+      "width": 1440,
+      "height": 1500
+    },
+    "jsErrors": 0,
+    "tooltipVerified": true,
+    "notLocalBusinessData": true
+  }
+}

@@ -1,0 +1,424 @@
+generator client {
+  provider = "prisma-client-js"
+}
+datasource db {
+  provider = "sqlite"
+  url = env("DATABASE_URL")
+}
+model Role {
+  id String @id @default(cuid())
+  code String @unique
+  name String
+  permissions String
+  users User[]
+}
+model User {
+  id String @id @default(cuid())
+  username String @unique
+  passwordHash String
+  displayName String
+  roleId String
+  role Role @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  status String @default("ACTIVE")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  sessions Session[]
+  products Product[]
+  categories ProductCategory[]
+  customers Customer[]
+  suppliers Supplier[]
+  warehouses Warehouse[]
+  logs AuditLog[]
+  purchaseOrders PurchaseOrder[]
+  goodsReceipts GoodsReceipt[]
+  stockMovements StockMovement[]
+  payables Payable[]
+  idempotencyRecords IdempotencyRecord[]
+  salesOrders SalesOrder[]
+  salesShipments SalesShipment[]
+  receivables Receivable[]
+  settlements SettlementRecord[]
+  adjustments StockAdjustment[]
+}
+model Session {
+  id String @id
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  csrfToken String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  @@index([expiresAt])
+}
+model ProductCategory {
+  id String @id @default(cuid())
+  code String @unique
+  name String
+  status String @default("ACTIVE")
+  createdById String
+  createdBy User @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  products Product[]
+}
+model Product {
+  id String @id @default(cuid())
+  code String @unique
+  name String
+  categoryId String
+  category ProductCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  specification String @default("")
+  unit String
+  purchasePrice Int
+  salesPrice Int
+  minStock Int @default(0)
+  status String @default("ACTIVE")
+  createdById String
+  createdBy User @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([categoryId, status])
+  purchaseItems PurchaseOrderItem[]
+  receiptItems GoodsReceiptItem[]
+  salesItems SalesOrderItem[]
+  shipmentItems SalesShipmentItem[]
+  adjustments StockAdjustment[]
+  stockBalances StockBalance[]
+  stockMovements StockMovement[]
+}
+model Customer {
+  id String @id @default(cuid())
+  code String @unique
+  name String
+  contact String @default("")
+  phone String @default("")
+  email String @default("")
+  address String @default("")
+  remark String @default("")
+  status String @default("ACTIVE")
+  createdById String
+  createdBy User @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  salesOrders SalesOrder[]
+  receivables Receivable[]
+}
+model Supplier {
+  id String @id @default(cuid())
+  code String @unique
+  name String
+  contact String @default("")
+  phone String @default("")
+  email String @default("")
+  address String @default("")
+  remark String @default("")
+  status String @default("ACTIVE")
+  createdById String
+  createdBy User @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  purchaseOrders PurchaseOrder[]
+  payables Payable[]
+}
+model Warehouse {
+  id String @id @default(cuid())
+  code String @unique
+  name String
+  location String @default("")
+  manager String @default("")
+  status String @default("ACTIVE")
+  createdById String
+  createdBy User @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  purchaseOrders PurchaseOrder[]
+  goodsReceipts GoodsReceipt[]
+  stockBalances StockBalance[]
+  stockMovements StockMovement[]
+  salesOrders SalesOrder[]
+  salesShipments SalesShipment[]
+  adjustments StockAdjustment[]
+}
+model PurchaseOrder {
+  id String @id @default(cuid())
+  number String @unique
+  supplierId String
+  supplier Supplier @relation(fields:[supplierId], references:[id], onDelete:Restrict)
+  warehouseId String
+  warehouse Warehouse @relation(fields:[warehouseId], references:[id], onDelete:Restrict)
+  orderDate String
+  expectedDate String?
+  rejectionReason String @default("")
+  remark String @default("")
+  status String @default("DRAFT")
+  totalAmount Int
+  version Int @default(0)
+  createdById String
+  createdBy User @relation(fields:[createdById], references:[id], onDelete:Restrict)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  items PurchaseOrderItem[]
+  receipts GoodsReceipt[]
+  @@index([status,orderDate])
+  @@index([supplierId])
+}
+model PurchaseOrderItem {
+  id String @id @default(cuid())
+  orderId String
+  order PurchaseOrder @relation(fields:[orderId], references:[id], onDelete:Restrict)
+  productId String
+  product Product @relation(fields:[productId], references:[id], onDelete:Restrict)
+  productCode String
+  productName String
+  specification String
+  unit String
+  quantity Int
+  unitPrice Int
+  amount Int
+  receivedQuantity Int @default(0)
+  receiptItems GoodsReceiptItem[]
+  @@unique([orderId,productId])
+}
+model GoodsReceipt {
+  id String @id @default(cuid())
+  number String @unique
+  orderId String
+  order PurchaseOrder @relation(fields:[orderId], references:[id], onDelete:Restrict)
+  warehouseId String
+  warehouse Warehouse @relation(fields:[warehouseId], references:[id], onDelete:Restrict)
+  totalAmount Int
+  remark String @default("")
+  createdById String
+  createdBy User @relation(fields:[createdById], references:[id], onDelete:Restrict)
+  createdAt DateTime @default(now())
+  items GoodsReceiptItem[]
+  payable Payable?
+  movements StockMovement[]
+  idempotencyRecord IdempotencyRecord?
+  @@index([orderId])
+  @@index([createdAt])
+}
+model GoodsReceiptItem {
+  id String @id @default(cuid())
+  receiptId String
+  receipt GoodsReceipt @relation(fields:[receiptId], references:[id], onDelete:Restrict)
+  orderItemId String
+  orderItem PurchaseOrderItem @relation(fields:[orderItemId], references:[id], onDelete:Restrict)
+  productId String
+  product Product @relation(fields:[productId], references:[id], onDelete:Restrict)
+  productCode String
+  productName String
+  specification String
+  unit String
+  quantity Int
+  unitPrice Int
+  amount Int
+  @@unique([receiptId,orderItemId])
+}
+model StockBalance {
+  id String @id @default(cuid())
+  productId String
+  product Product @relation(fields:[productId], references:[id], onDelete:Restrict)
+  warehouseId String
+  warehouse Warehouse @relation(fields:[warehouseId], references:[id], onDelete:Restrict)
+  quantity Int @default(0)
+  updatedAt DateTime @updatedAt
+  @@unique([productId,warehouseId])
+}
+model StockMovement {
+  id String @id @default(cuid())
+  number String @unique
+  productId String
+  product Product @relation(fields:[productId], references:[id], onDelete:Restrict)
+  warehouseId String
+  warehouse Warehouse @relation(fields:[warehouseId], references:[id], onDelete:Restrict)
+  type String
+  quantity Int
+  beforeQuantity Int
+  afterQuantity Int
+  receiptId String?
+  receipt GoodsReceipt? @relation(fields:[receiptId], references:[id], onDelete:Restrict)
+  shipmentId String?
+  shipment SalesShipment? @relation(fields:[shipmentId], references:[id], onDelete:Restrict)
+  adjustmentId String?
+  adjustment StockAdjustment? @relation(fields:[adjustmentId], references:[id], onDelete:Restrict)
+  createdById String
+  createdBy User @relation(fields:[createdById], references:[id], onDelete:Restrict)
+  createdAt DateTime @default(now())
+  @@unique([receiptId,productId])
+  @@unique([shipmentId,productId])
+  @@unique([adjustmentId,productId])
+  @@index([productId,warehouseId,createdAt])
+}
+model Payable {
+  id String @id @default(cuid())
+  number String @unique
+  supplierId String
+  supplier Supplier @relation(fields:[supplierId], references:[id], onDelete:Restrict)
+  receiptId String @unique
+  receipt GoodsReceipt @relation(fields:[receiptId], references:[id], onDelete:Restrict)
+  originalAmount Int
+  paidAmount Int @default(0)
+  status String @default("UNSETTLED")
+  createdById String
+  createdBy User @relation(fields:[createdById], references:[id], onDelete:Restrict)
+  createdAt DateTime @default(now())
+  settlements SettlementRecord[]
+  @@index([supplierId,status])
+}
+model IdempotencyRecord {
+  key String @id
+  scope String
+  userId String
+  user User @relation(fields:[userId], references:[id], onDelete:Restrict)
+  requestHash String
+  receiptId String? @unique
+  receipt GoodsReceipt? @relation(fields:[receiptId], references:[id], onDelete:Restrict)
+  shipmentId String? @unique
+  shipment SalesShipment? @relation(fields:[shipmentId], references:[id], onDelete:Restrict)
+  settlementId String? @unique
+  settlement SettlementRecord? @relation(fields:[settlementId], references:[id], onDelete:Restrict)
+  adjustmentId String? @unique
+  adjustment StockAdjustment? @relation(fields:[adjustmentId], references:[id], onDelete:Restrict)
+  createdAt DateTime @default(now())
+}
+model AuditLog {
+  id String @id @default(cuid())
+  actorId String
+  actor User @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  action String
+  resource String
+  resourceId String
+  createdAt DateTime @default(now())
+  @@index([createdAt])
+}
+
+model SalesOrder {
+  id String @id @default(cuid())
+  number String @unique
+  customerId String
+  customer Customer @relation(fields:[customerId], references:[id], onDelete:Restrict)
+  warehouseId String
+  warehouse Warehouse @relation(fields:[warehouseId], references:[id], onDelete:Restrict)
+  orderDate String
+  expectedDate String?
+  rejectionReason String @default("")
+  remark String @default("")
+  status String @default("DRAFT")
+  totalAmount Int
+  version Int @default(0)
+  createdById String
+  createdBy User @relation(fields:[createdById], references:[id], onDelete:Restrict)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  items SalesOrderItem[]
+  shipments SalesShipment[]
+  @@index([status,orderDate])
+  @@index([customerId])
+}
+model SalesOrderItem {
+  id String @id @default(cuid())
+  orderId String
+  order SalesOrder @relation(fields:[orderId], references:[id], onDelete:Restrict)
+  productId String
+  product Product @relation(fields:[productId], references:[id], onDelete:Restrict)
+  productCode String
+  productName String
+  specification String
+  unit String
+  quantity Int
+  unitPrice Int
+  amount Int
+  shippedQuantity Int @default(0)
+  shipmentItems SalesShipmentItem[]
+  @@unique([orderId,productId])
+}
+model SalesShipment {
+  id String @id @default(cuid())
+  number String @unique
+  orderId String
+  order SalesOrder @relation(fields:[orderId], references:[id], onDelete:Restrict)
+  warehouseId String
+  warehouse Warehouse @relation(fields:[warehouseId], references:[id], onDelete:Restrict)
+  totalAmount Int
+  remark String @default("")
+  createdById String
+  createdBy User @relation(fields:[createdById], references:[id], onDelete:Restrict)
+  createdAt DateTime @default(now())
+  items SalesShipmentItem[]
+  receivable Receivable?
+  movements StockMovement[]
+  idempotencyRecord IdempotencyRecord?
+  @@index([orderId])
+  @@index([createdAt])
+}
+model SalesShipmentItem {
+  id String @id @default(cuid())
+  shipmentId String
+  shipment SalesShipment @relation(fields:[shipmentId], references:[id], onDelete:Restrict)
+  orderItemId String
+  orderItem SalesOrderItem @relation(fields:[orderItemId], references:[id], onDelete:Restrict)
+  productId String
+  product Product @relation(fields:[productId], references:[id], onDelete:Restrict)
+  productCode String
+  productName String
+  specification String
+  unit String
+  quantity Int
+  unitPrice Int
+  amount Int
+  @@unique([shipmentId,orderItemId])
+}
+
+model Receivable {
+  id String @id @default(cuid())
+  number String @unique
+  customerId String
+  customer Customer @relation(fields:[customerId], references:[id], onDelete:Restrict)
+  shipmentId String @unique
+  shipment SalesShipment @relation(fields:[shipmentId], references:[id], onDelete:Restrict)
+  originalAmount Int
+  receivedAmount Int @default(0)
+  status String @default("UNSETTLED")
+  createdById String
+  createdBy User @relation(fields:[createdById], references:[id], onDelete:Restrict)
+  createdAt DateTime @default(now())
+  settlements SettlementRecord[]
+  @@index([customerId,status])
+}
+model SettlementRecord {
+  id String @id @default(cuid())
+  number String @unique
+  type String
+  receivableId String?
+  receivable Receivable? @relation(fields:[receivableId], references:[id], onDelete:Restrict)
+  payableId String?
+  payable Payable? @relation(fields:[payableId], references:[id], onDelete:Restrict)
+  amount Int
+  date String
+  method String
+  remark String @default("")
+  createdById String
+  createdBy User @relation(fields:[createdById], references:[id], onDelete:Restrict)
+  createdAt DateTime @default(now())
+  idempotencyRecord IdempotencyRecord?
+  @@index([createdAt])
+  @@index([date,type])
+  @@index([receivableId])
+  @@index([payableId])
+}
+model StockAdjustment {
+  id String @id @default(cuid())
+  number String @unique
+  productId String
+  product Product @relation(fields:[productId], references:[id], onDelete:Restrict)
+  warehouseId String
+  warehouse Warehouse @relation(fields:[warehouseId], references:[id], onDelete:Restrict)
+  quantity Int
+  reason String
+  createdById String
+  createdBy User @relation(fields:[createdById], references:[id], onDelete:Restrict)
+  createdAt DateTime @default(now())
+  movements StockMovement[]
+  idempotencyRecord IdempotencyRecord?
+  @@index([createdAt])
+}

@@ -1,0 +1,45 @@
+{
+  "name": "@kingflow/api",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "start": "tsx src/server.ts",
+    "start:prod": "node dist/apps/api/src/server.js",
+    "typecheck": "tsc --noEmit",
+    "build": "prisma generate && tsc -p tsconfig.build.json && tsx scripts/postbuild.ts",
+    "db:migrate": "tsx scripts/migrate.ts",
+    "db:bootstrap": "tsx scripts/bootstrap-admin.ts",
+    "db:seed": "tsx prisma/seed.ts",
+    "db:reset": "tsx scripts/reset.ts",
+    "db:backup": "tsx scripts/backup.ts backup",
+    "db:verify": "tsx scripts/backup.ts verify",
+    "db:restore": "tsx scripts/backup.ts restore",
+    "db:drill": "tsx scripts/backup.ts drill",
+    "smoke:prod": "tsx scripts/production-smoke.ts",
+    "test": "tsx scripts/test.ts"
+  },
+  "dependencies": {
+    "@kingflow/shared": "workspace:*",
+    "@prisma/client": "6.19.0",
+    "express": "^5.1.0",
+    "cookie-parser": "^1.4.7",
+    "bcryptjs": "^3.0.2",
+    "zod": "^3.25.76",
+    "express-rate-limit": "^8.1.0",
+    "helmet": "^8.1.0",
+    "dotenv": "^17.2.3"
+  },
+  "devDependencies": {
+    "prisma": "6.19.0",
+    "tsx": "^4.20.6",
+    "vitest": "^3.2.4",
+    "supertest": "^7.1.4",
+    "@types/supertest": "^6.0.3",
+    "@types/express": "^5.0.3",
+    "@types/cookie-parser": "^1.4.9",
+    "@types/node": "^24.9.0",
+    "typescript": "^5.9.3"
+  }
+}
