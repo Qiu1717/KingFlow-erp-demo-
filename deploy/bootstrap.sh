@@ -115,6 +115,15 @@ sudo -u "$APP_USER" -H env HOME="$APP_ROOT" PATH="$NODE_HOME/bin:$PATH" bash -c 
 [ -f "$RELEASE/apps/api/dist/apps/api/src/server.js" ] || die "后端构建产物缺失（current 仍指向旧版本，线上未受影响）"
 echo "构建产物完整"
 
+# 预压缩静态资源：实例公网带宽只有 4Mbps，首屏 JS 是主要耗时。
+# 预先用 gzip -9 压好，配合 nginx 的 gzip_static 直接吐 .gz 文件——
+# 比 nginx 实时压缩（默认级别 1）再省约 10%，且完全不占运行时 CPU。
+log "预压缩静态资源（gzip -9）"
+find "$RELEASE/apps/web/dist" -type f \( -name '*.js' -o -name '*.css' -o -name '*.svg' -o -name '*.json' \) -exec gzip -9n -k {} +
+GZ=$(find "$RELEASE/apps/web/dist" -name '*.gz' | wc -l)
+[ "$GZ" -gt 0 ] || die "预压缩失败"
+echo "已生成 $GZ 个预压缩文件"
+
 log "7/9 生成环境变量与演示账号"
 if [ -f "$ENV_FILE" ]; then
   echo "复用已有 $ENV_FILE"
@@ -216,6 +225,9 @@ server {
     error_log  /var/log/nginx/kingflow.error.log warn;
 
     gzip on;
+    gzip_static on;
+    gzip_comp_level 6;
+    gzip_vary on;
     gzip_types text/css application/javascript application/json image/svg+xml;
     gzip_min_length 1024;
 
