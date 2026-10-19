@@ -117,6 +117,7 @@ DATABASE_URL=file:$DATA_DIR/erp.db
 HOST=127.0.0.1
 PORT=3001
 TRUST_PROXY=loopback
+REGISTRATION_ENABLED=true
 EOF
   chown root:"$APP_USER" "$ENV_FILE" && chmod 0640 "$ENV_FILE"
   cat > /root/kingflow-credentials.txt <<EOF

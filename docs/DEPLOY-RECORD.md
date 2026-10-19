@@ -13,7 +13,7 @@ codex 编写的生产版手册见 `DEPLOYMENT.md`（其 HTTPS / production 前�
 | 实例 | `lhins-epeyuale`，ap-beijing，Ubuntu 26.04 LTS，2 核 / 1962 MB / 49G |
 | 运行时 | Node v24.22.0（`/opt/nodejs`）+ pnpm 11.25.0 |
 | 数据库 | SQLite，`/var/lib/kingflow/erp.db` |
-| 公开注册 | 已关闭（`REGISTRATION_ENABLED=false`），只有上述两个账号 |
+| 公开注册 | **已开启**（`REGISTRATION_ENABLED=true`），审核制：新注册账号为 GUEST + `PENDING`，须管理员审核并分配业务角色后才能登录 |
 
 ## 2. 采用的方案
 
@@ -57,7 +57,7 @@ DATABASE_URL=file:/var/lib/kingflow/erp.db
 HOST=127.0.0.1
 PORT=3001
 TRUST_PROXY=loopback
-REGISTRATION_ENABLED=false
+REGISTRATION_ENABLED=true
 ```
 
 服务以 `kingflow` 系统用户运行，并启用 `ProtectSystem=strict` + `ReadWritePaths=/var/lib/kingflow`，
@@ -135,7 +135,50 @@ systemctl restart kingflow-erp
 - 部署机与源站之间留了一把临时 SSH 公钥（`/root/.ssh/authorized_keys` 中标记
   `workbuddy-deploy-temp`）。不再需要远程部署时可删除该行。
 
-## 8. 撤销
+## 8. 变更记录
+
+### 2026-10-19 20:22 注册与登录排查修复
+
+**现象**：`/api/v1/auth/options` 返回 `registrationEnabled: false`，登录页看不到注册入口。
+
+**根因**：不是代码缺陷。上一轮部署时为收敛公网暴露面，在 `/etc/kingflow/erp.env` 里显式写了
+`REGISTRATION_ENABLED=false`，而 `Login.tsx` 的注册入口正是以 `options.data.registrationEnabled`
+为渲染条件（第 241 行）。
+
+**处置**：
+
+1. 变更前备份数据库 → `/var/backups/kingflow/pre-registration-change-20261019-2021.db`
+   （454656 字节，SHA256 `d234e4d5…a47d6dc`）；配置备份 `/etc/kingflow/erp.env.bak-*`。
+2. `REGISTRATION_ENABLED` 改为 `true`，`systemctl restart kingflow-erp`，
+   并核对**进程内存中的实际环境变量**（而非只看配置文件）确认为 `true`。
+3. 接口返回 `{"registrationEnabled":true,"registrationMode":"approval"}`，构建产物
+   `assets/index-*.js` 中含「注册账号」文案，入口恢复。
+
+**管理员状态**：`admin`（`ACTIVE` / `ADMIN`）存在且可正常登录。
+因此**未**执行 `pnpm db:bootstrap`，也**未**重置其密码。
+
+**闭环验证**（全部通过）：
+
+| 步骤 | 结果 |
+|---|---|
+| 提交注册申请 | 201，`{"username":"qa_check01","status":"PENDING"}` |
+| PENDING 账号登录 | 403 `ACCOUNT_PENDING` |
+| 以 ADMIN 角色审批 | 422 `INVALID_ROLE`（审核不能直接授予管理员） |
+| 以 GUEST 角色审批 | 200，`status: ACTIVE` |
+| 审批后登录 | 200，返回会话与 CSRF |
+| 新用户读接口 | 200（GUEST 有 `master:read`） |
+| 新用户写接口 | 403 `FORBIDDEN` |
+| 审计日志 | 含 `REGISTER` / `APPROVE_REGISTRATION` / `LOGIN` |
+| 验证账号收尾 | `qa_check01` 置为 `INACTIVE`，再登录返回 `INVALID_CREDENTIALS` |
+
+**演示密码**：注册接口对 `KingFlow@2026` 返回 `VALIDATION_ERROR`（「请勿使用系统名称或演示密码」），
+密码策略要求 ≥12 位且含大小写字母、数字、符号；伪造 `Origin` 的注册被 `INVALID_ORIGIN` 拒绝。
+
+**遗留**：库里只有 `ADMIN` 与 `GUEST` 两个角色（`provision-demo.ts` 只建了这两个），
+缺少采购 / 销售 / 仓库 / 财务角色，管理员审核时除 GUEST 外无业务角色可选。
+需要时按 `packages/shared` 的 `roleDefinitions` 补齐。
+
+## 9. 撤销
 
 ```bash
 systemctl disable --now kingflow-erp kingflow-backup.timer
