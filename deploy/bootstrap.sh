@@ -72,12 +72,14 @@ install -d -o "$APP_USER" -g "$APP_USER" -m 0755 "$APP_ROOT/releases"
 install -d -o "$APP_USER" -g "$APP_USER" -m 0750 "$DATA_DIR"
 install -d -o kingflow -g kingflow -m 0750 /var/backups/kingflow
 install -d -o root -g "$APP_USER" -m 0750 "$ENV_DIR"
-if ! swapon --show | grep -q '/swapfile'; then
+# 判据是「系统当前有没有任何 swap」，而不是「有没有 /swapfile」：
+# Ubuntu 22.04+ 镜像自带 /swap.img，按文件名判断会重复创建、白占 2G 磁盘。
+if [ -z "$(swapon --show --noheadings 2>/dev/null)" ]; then
   fallocate -l 2G /swapfile && chmod 600 /swapfile && mkswap /swapfile >/dev/null && swapon /swapfile
   grep -q '^/swapfile' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
   echo "已启用 2G swap"
 else
-  echo "swap 已存在"
+  echo "swap 已存在：$(swapon --show --noheadings | awk '{print $1}' | tr '\n' ' ')"
 fi
 
 log "5/9 解包源码到 $RELEASE"
