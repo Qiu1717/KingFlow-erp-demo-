@@ -1,4 +1,4 @@
-# KingFlow ERP 部署记录（49.233.200.176）
+# KingFlow ERP 部署记录（<服务器公网 IP>）
 
 本文件记录**实际完成**的部署结果，不是执行前的计划。计划文档见 `DEPLOY-PLAN-IP.md`，
 codex 编写的生产版手册见 `DEPLOYMENT.md`（其 HTTPS / production 前提与本机部署不同，见第 6 节）。
@@ -7,10 +7,10 @@ codex 编写的生产版手册见 `DEPLOYMENT.md`（其 HTTPS / production 前�
 
 | 项目 | 值 |
 |---|---|
-| 访问地址 | <http://49.233.200.176> |
+| 访问地址 | <http://<服务器公网 IP>> |
 | 账号 | `admin`（系统管理员，`*` 全权限）、`demo`（只读访客） |
 | 密码 | 服务器 `/root/kingflow-credentials.txt`（0600），不入库、不写进本文件 |
-| 实例 | `lhins-epeyuale`，ap-beijing，Ubuntu 26.04 LTS，2 核 / 1962 MB / 49G |
+| 实例 | 轻量应用服务器（实例 ID 略），ap-beijing，Ubuntu 26.04 LTS，2 核 / 1962 MB / 49G |
 | 运行时 | Node v24.22.0（`/opt/nodejs`）+ pnpm 11.25.0 |
 | 数据库 | SQLite，`/var/lib/kingflow/erp.db` |
 | 公开注册 | **已开启**（`REGISTRATION_ENABLED=true`），审核制：新注册账号为 GUEST + `PENDING`，须管理员审核并分配业务角色后才能登录 |
@@ -53,7 +53,7 @@ Cookie 加 `Secure`，且 `runtime.ts` 要求 `APP_ORIGIN` 必须是 `https://`�
 
 ```ini
 NODE_ENV=development
-APP_ORIGIN=http://49.233.200.176
+APP_ORIGIN=http://<服务器公网 IP>
 DATABASE_URL=file:/var/lib/kingflow/erp.db
 HOST=127.0.0.1
 PORT=3001

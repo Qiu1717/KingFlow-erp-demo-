@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
 # KingFlow ERP 一键部署（方案 C：明文 HTTP，80 端口直连 IP）
-# 用法（服务器上，root）：bash bootstrap.sh /root/kingflow-src.tar.gz
+# 用法（服务器上，root）：PUBLIC_IP=<服务器公网IP> bash bootstrap.sh /root/kingflow-src.tar.gz
 # 幂等：可重复执行；已安装的组件会跳过或覆盖配置。
 set -euo pipefail
 
 TARBALL="${1:-/root/kingflow-src.tar.gz}"
-PUBLIC_IP="49.233.200.176"
+# 公网 IP 不写死在仓库里：部署时通过环境变量传入。
+# 用法：PUBLIC_IP=<你的服务器公网IP> bash bootstrap.sh [源码包路径]
+PUBLIC_IP="${PUBLIC_IP:-}"
 APP_ROOT=/opt/kingflow
 APP_USER=kingflow
 DATA_DIR=/var/lib/kingflow
@@ -29,6 +31,7 @@ gen_pwd() {
 
 [ "$(id -u)" -eq 0 ] || die "请用 root 执行"
 [ -f "$TARBALL" ] || die "找不到源码包 $TARBALL"
+[ -n "$PUBLIC_IP" ] || die "请先指定公网 IP：PUBLIC_IP=<服务器公网IP> bash bootstrap.sh [源码包路径]"
 
 log "0/9 系统信息"
 . /etc/os-release
